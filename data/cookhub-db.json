@@ -1,0 +1,190 @@
+{
+  "users": [
+    {
+      "id": "user-camila",
+      "name": "Camila Rojas",
+      "email": "camila@cookhub.com",
+      "passwordHash": "$2b$10$YehR4mNuammzPqVVpgC0teYWnFgpboygOmhAn.CQJkWWJyV9I6Ac.",
+      "bio": "Amante de la repostería, las pastas caseras y los desayunos lentos de domingo.",
+      "avatar": "https://images.unsplash.com/photo-1494790108377-be9c29b29330?auto=format&fit=crop&w=400&q=80",
+      "createdAt": "2026-07-18T18:26:27.423Z",
+      "updatedAt": "2026-07-18T18:26:27.424Z"
+    },
+    {
+      "id": "user-4dff1c3f-daf3-436a-9d1f-ab07618db8db",
+      "name": "Ana Torres",
+      "email": "ana@cookhub.com",
+      "passwordHash": "$2b$10$rWM1pfQ6TLJKVm3yzTpJEOZ7xV.3Uu6bu2YouNi/f3yrmsuOwZDHi",
+      "bio": "Cocinera de pruebas",
+      "avatar": "https://images.unsplash.com/photo-1494790108377-be9c29b29330?auto=format&fit=crop&w=400&q=80",
+      "createdAt": "2026-07-18T18:34:18.682Z",
+      "updatedAt": "2026-07-18T18:34:18.682Z"
+    }
+  ],
+  "categories": [
+    {
+      "id": "cat-postres",
+      "title": "Postres",
+      "slug": "postres",
+      "image": "https://images.unsplash.com/photo-1495147466023-ac5c588e2e94?auto=format&fit=crop&w=1200&q=80"
+    },
+    {
+      "id": "cat-mexicana",
+      "title": "Comida Mexicana",
+      "slug": "comida-mexicana",
+      "image": "https://images.unsplash.com/photo-1551504734-5ee1c4a1479b?auto=format&fit=crop&w=1200&q=80"
+    },
+    {
+      "id": "cat-italiana",
+      "title": "Italiana",
+      "slug": "italiana",
+      "image": "https://images.unsplash.com/photo-1482049016688-2d3e1b311543?auto=format&fit=crop&w=1200&q=80"
+    },
+    {
+      "id": "cat-vegana",
+      "title": "Vegana",
+      "slug": "vegana",
+      "image": "https://images.unsplash.com/photo-1512621776951-a57141f2eefd?auto=format&fit=crop&w=1200&q=80"
+    },
+    {
+      "id": "cat-bebidas",
+      "title": "Bebidas",
+      "slug": "bebidas",
+      "image": "https://images.unsplash.com/photo-1495474472287-4d71bcdd2085?auto=format&fit=crop&w=1200&q=80"
+    },
+    {
+      "id": "cat-desayunos",
+      "title": "Desayunos",
+      "slug": "desayunos",
+      "image": "https://images.unsplash.com/photo-1490645935967-10de6ba17061?auto=format&fit=crop&w=1200&q=80"
+    }
+  ],
+  "recipes": [
+    {
+      "id": "recipe-be614632-f08f-4f83-8f25-88e0729dc717",
+      "title": "Pud�n de ch�a",
+      "description": "Postre r�pido y fresco para el desayuno",
+      "ingredients": [
+        "3 cucharadas de ch�a",
+        "1 taza de leche",
+        "Fruta fresca"
+      ],
+      "steps": [
+        "Mezcla los ingredientes.",
+        "Refrigera toda la noche.",
+        "Sirve con fruta fresca."
+      ],
+      "prepTime": "10 min",
+      "image": "https://images.unsplash.com/photo-1490645935967-10de6ba17061?auto=format&fit=crop&w=1200&q=80",
+      "categoryId": "cat-postres",
+      "authorId": "user-4dff1c3f-daf3-436a-9d1f-ab07618db8db",
+      "savedBy": [],
+      "createdAt": "2026-07-18T18:36:32.105Z",
+      "updatedAt": "2026-07-18T18:36:32.105Z"
+    },
+    {
+      "id": "cheesecake-fresa",
+      "title": "Cheesecake de Fresa",
+      "description": "Base crujiente, crema suave y fresas frescas para un postre elegante.",
+      "ingredients": [
+        "200 g de galletas",
+        "80 g de mantequilla",
+        "400 g de queso crema",
+        "200 ml de crema para batir",
+        "Fresas frescas"
+      ],
+      "steps": [
+        "Tritura las galletas y mezcla con la mantequilla.",
+        "Bate el queso crema con la crema para batir.",
+        "Arma la base, agrega la mezcla y refrigera por 4 horas.",
+        "Decora con fresas antes de servir."
+      ],
+      "prepTime": "30 min",
+      "image": "https://images.unsplash.com/photo-1565958011703-44f9829ba187?auto=format&fit=crop&w=1200&q=80",
+      "categoryId": "cat-postres",
+      "authorId": "user-camila",
+      "savedBy": [
+        "user-camila"
+      ],
+      "createdAt": "2026-07-18T18:26:27.424Z",
+      "updatedAt": "2026-07-18T18:26:27.424Z"
+    },
+    {
+      "id": "pasta-alfredo",
+      "title": "Pasta Alfredo",
+      "description": "Una salsa sedosa con parmesano y mantequilla para pasta fresca.",
+      "ingredients": [
+        "300 g de fettuccine",
+        "2 cucharadas de mantequilla",
+        "200 ml de crema",
+        "80 g de parmesano",
+        "Pimienta negra"
+      ],
+      "steps": [
+        "Cocina la pasta al dente.",
+        "Funde la mantequilla y añade la crema.",
+        "Incorpora parmesano y mezcla con la pasta.",
+        "Termina con pimienta negra recién molida."
+      ],
+      "prepTime": "25 min",
+      "image": "https://images.unsplash.com/photo-1473093295043-cdd812d0e601?auto=format&fit=crop&w=1200&q=80",
+      "categoryId": "cat-italiana",
+      "authorId": "user-camila",
+      "savedBy": [
+        "user-camila"
+      ],
+      "createdAt": "2026-07-18T18:26:27.424Z",
+      "updatedAt": "2026-07-18T18:26:27.424Z"
+    },
+    {
+      "id": "tacos-cochinita",
+      "title": "Tacos de Cochinita",
+      "description": "Tortillas suaves, carne especiada y encurtido cítrico.",
+      "ingredients": [
+        "Tortillas de maíz",
+        "Carne marinada",
+        "Cebolla morada",
+        "Limón",
+        "Salsa al gusto"
+      ],
+      "steps": [
+        "Calienta las tortillas.",
+        "Cocina o deshebra la cochinita.",
+        "Agrega cebolla encurtida y salsa.",
+        "Sirve con limón."
+      ],
+      "prepTime": "45 min",
+      "image": "https://images.unsplash.com/photo-1565299624946-b28f40a0ae38?auto=format&fit=crop&w=1200&q=80",
+      "categoryId": "cat-mexicana",
+      "authorId": "user-camila",
+      "savedBy": [],
+      "createdAt": "2026-07-18T18:26:27.424Z",
+      "updatedAt": "2026-07-18T18:26:27.424Z"
+    },
+    {
+      "id": "bowl-verde",
+      "title": "Bowl Verde",
+      "description": "Un bowl fresco con proteínas vegetales y texturas crujientes.",
+      "ingredients": [
+        "Quinoa",
+        "Aguacate",
+        "Edamame",
+        "Pepino",
+        "Vinagreta cítrica"
+      ],
+      "steps": [
+        "Cocina la quinoa y enfría.",
+        "Prepara las verduras.",
+        "Arma el bowl por capas.",
+        "Aliña justo antes de servir."
+      ],
+      "prepTime": "20 min",
+      "image": "https://images.unsplash.com/photo-1512621776951-a57141f2eefd?auto=format&fit=crop&w=1200&q=80",
+      "categoryId": "cat-vegana",
+      "authorId": "user-camila",
+      "savedBy": [],
+      "createdAt": "2026-07-18T18:26:27.424Z",
+      "updatedAt": "2026-07-18T18:26:27.424Z"
+    }
+  ]
+}
