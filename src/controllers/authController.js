@@ -20,7 +20,7 @@ export async function register(req, res, next) {
 
     // Insertar usuario
     const [result] = await pool.query(
-      'INSERT INTO usuarios (nombre, email, password_hash) VALUES (?, ?, ?)',
+      'INSERT INTO usuarios (nombre, email, password_hash) VALUES (?, ?, ?) RETURNING id',
       [nombre, email, password_hash]
     );
 
@@ -69,7 +69,7 @@ export async function login(req, res, next) {
 
     // Generar token
     const token = jwt.sign({ id: user.id, roles: userRoles }, process.env.JWT_SECRET, {
-      expiresIn: '7d'
+      expiresIn: "1h"
     });
 
     res.json({

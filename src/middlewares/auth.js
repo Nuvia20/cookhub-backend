@@ -33,3 +33,21 @@ export function requirePermission(role) {
     next();
   };
 }
+
+export const verifyToken = (req, res, next) => {
+  const token = req.headers.authorization?.split(" ")[1];
+  if (!token) return res.status(401).json({ valid: false, error: "Token no proporcionado" });
+
+  try {
+    const decoded = jwt.verify(token, process.env.JWT_SECRET);
+    req.user = { id: decoded.id, roles: decoded.roles };
+    next();
+  } catch (error) {
+    if (error.name === "TokenExpiredError") {
+      return res.status(401).json({ valid: false, error: "Token expirado" });
+    }
+    return res.status(403).json({ valid: false, error: "Token inválido" });
+  }
+};
+
+

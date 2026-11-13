@@ -1,4 +1,4 @@
-import pool from '../config/db.js';
+import pool, { query } from '../config/db.js';
 import { getAccessRowsForUser, getDefaultRoleId } from './authorizationService.js';
 import { mapUserRow } from '../utils/users.js';
 
@@ -40,7 +40,7 @@ export const findUserAuthById = async (userId) => {
 
 export const createUser = async ({ name, email, passwordHash }) => {
   const [result] = await pool.query(
-    'INSERT INTO usuarios (nombre, email, password_hash) VALUES (?, ?, ?)',
+    'INSERT INTO usuarios (nombre, email, password_hash) VALUES (?, ?, ?) RETURNING id',
     [name, email, passwordHash]
   );
   return { id: result.insertId, nombre: name, email };

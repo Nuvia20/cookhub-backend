@@ -1,4 +1,4 @@
-import { query } from '../config/db.js';
+import pool, { query } from '../config/db.js';
 import { categories, recipeCatalog } from '../data/catalog.js';
 
 const normalizeList = (value) => {
@@ -24,7 +24,7 @@ const buildRecipeView = (row, ingredients, steps, authorName) => {
     ingredients: ingredients.map((item) => (item.cantidad ? `${item.cantidad} ${item.nombre}`.trim() : item.nombre)),
     steps: steps.map((item) => item.descripcion),
     prepTime: row.tiempo_preparacion ? `${row.tiempo_preparacion} min` : '0 min',
-    image: row.imagen || catalogItem.image,
+    image: row.imagen_url || catalogItem.image,
     categoryId: row.categoria_id || catalogItem.categoryId || category.id,
     category: category?.title || catalogItem.category || 'Recetas',
     authorId: String(row.usuario_id),
@@ -36,7 +36,7 @@ const buildRecipeView = (row, ingredients, steps, authorName) => {
 
 export const getAllRecipes = async () => {
   const [recipes] = await query(
-    `SELECT r.id, r.usuario_id, r.categoria_id, r.titulo, r.descripcion, r.tiempo_preparacion, r.imagen, r.creado_en, r.actualizado_en, u.nombre AS autor
+    `SELECT r.id, r.usuario_id, r.categoria_id, r.titulo, r.descripcion, r.tiempo_preparacion, r.imagen_url, r.creado_en, r.actualizado_en, u.nombre AS autor
      FROM recetas r
      INNER JOIN usuarios u ON u.id = r.usuario_id
      ORDER BY r.creado_en DESC`,
@@ -72,7 +72,7 @@ export const getAllRecipes = async () => {
 
 export const getRecipeById = async (recipeId) => {
   const [recipes] = await query(
-    `SELECT r.id, r.usuario_id, r.categoria_id, r.titulo, r.descripcion, r.tiempo_preparacion, r.imagen, r.creado_en, r.actualizado_en, u.nombre AS autor
+    `SELECT r.id, r.usuario_id, r.categoria_id, r.titulo, r.descripcion, r.tiempo_preparacion, r.imagen_url, r.creado_en, r.actualizado_en, u.nombre AS autor
      FROM recetas r
      INNER JOIN usuarios u ON u.id = r.usuario_id
      WHERE r.id = ?
@@ -100,8 +100,8 @@ export const createRecipe = async ({ userId, payload }) => {
   const category = categories.find((item) => item.title.toLowerCase() === String(payload.category || catalogItem.category || '').toLowerCase()) || categories[0];
 
   const [recipeResult] = await query(
-    `INSERT INTO recetas (usuario_id, categoria_id, titulo, descripcion, tiempo_preparacion, imagen)
-     VALUES (?, ?, ?, ?, ?, ?)`,
+    `INSERT INTO recetas (usuario_id, categoria_id, titulo, descripcion, tiempo_preparacion, imagen_url)
+    VALUES (?, ?, ?, ?, ?, ?) RETURNING id`,
     [userId, category?.id || null, title, description, prepTime, payload.image || catalogItem.image || null],
   );
 

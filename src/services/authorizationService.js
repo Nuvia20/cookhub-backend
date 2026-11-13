@@ -1,4 +1,4 @@
-import pool from '../config/db.js';
+import pool, { query } from '../config/db.js';
 
 
 const seedRoles = [
@@ -36,11 +36,11 @@ export const findUserByEmail = async (email) => {
 
 export const seedAuthorizationData = async () => {
   for (const role of seedRoles) {
-    await query('INSERT IGNORE INTO roles (nombre, descripcion) VALUES (?, ?)', [role.nombre, role.descripcion]);
+    await query('INSERT INTO roles (nombre, descripcion) VALUES (?, ?) ON CONFLICT (nombre) DO NOTHING', [role.nombre, role.descripcion]);
   }
 
   for (const permission of seedPermissions) {
-    await query('INSERT IGNORE INTO permisos (nombre, descripcion) VALUES (?, ?)', [permission.nombre, permission.descripcion]);
+    await query('INSERT INTO permisos (nombre, descripcion) VALUES (?, ?) ON CONFLICT (nombre) DO NOTHING', [permission.nombre, permission.descripcion]);
   }
 
   const [roles] = await query('SELECT id, nombre FROM roles');
@@ -54,7 +54,7 @@ export const seedAuthorizationData = async () => {
     const permissionId = permissionByName.get(permissionName);
 
     if (roleId && permissionId) {
-      await query('INSERT IGNORE INTO rol_permiso (rol_id, permiso_id) VALUES (?, ?)', [roleId, permissionId]);
+      await query('INSERT INTO rol_permiso (rol_id, permiso_id) VALUES (?, ?) ON CONFLICT DO NOTHING', [roleId, permissionId]);
     }
   }
 };
