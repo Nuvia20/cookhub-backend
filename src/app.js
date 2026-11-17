@@ -8,6 +8,7 @@ import profileRoutes from "./routes/profileRoutes.js";
 import recipeRoutes from "./routes/recipeRoutes.js";
 import recetasRoutes from "./routes/recetas.js";
 import usuariosRoutes from "./routes/usuarios.js";
+import alexaRoutes from "./routes/alexaRoutes.js";
 
 dotenv.config();
 
@@ -41,6 +42,7 @@ app.use("/uploads", express.static(uploadsDirectory));
 //  Rutas de recetas y usuarios
 app.use("/recetas", recetasRoutes);
 app.use("/usuarios", usuariosRoutes);
+app.use("/alexa", alexaRoutes);
 
 //  Manejo de rutas no encontradas
 app.use((req, res) => {
