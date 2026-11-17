@@ -2,6 +2,7 @@ import express from 'express';
 import pool from '../config/db.js';
 import { verifyToken } from '../middlewares/auth.js'; // middleware JWT
 import upload from '../middlewares/upload.js'; // middleware para subir imágenes
+import { uploadImage } from '../services/cloudinaryService.js';
 
 const router = express.Router();
 
@@ -85,14 +86,14 @@ router.post('/', verifyToken, upload.single('imagen'), async (req, res) => {
     const pasos = req.body.pasos ? JSON.parse(req.body.pasos) : [];
 
     const usuario_id = req.user.id;
-    const imagen_url = req.file ? `/uploads/${req.file.filename}` : null;
+    const imagen_url = await uploadImage(req.file, 'cookhub/recetas');
 
-    const [recetaResult] = await pool.query(
-      `INSERT INTO recetas (usuario_id, titulo, descripcion, tiempo_preparacion, imagen, categoria_id)
+    const [recetaRows] = await pool.query(
+      `INSERT INTO recetas (usuario_id, titulo, descripcion, tiempo_preparacion, imagen_url, categoria_id)
        VALUES (?, ?, ?, ?, ?, ?) RETURNING id`,
       [usuario_id, titulo, descripcion, tiempo_preparacion, imagen_url, categoria_id]
     );
-    const receta_id = recetaResult.insertId;
+    const receta_id = recetaRows[0]?.id;
 
     for (const ingrediente of ingredientes) {
       await pool.query(
@@ -163,11 +164,13 @@ router.put('/:id', verifyToken, upload.single('imagen'), async (req, res) => {
     const { titulo, descripcion, tiempo_preparacion, categoria_id } = req.body;
     const ingredientes = req.body.ingredientes ? JSON.parse(req.body.ingredientes) : [];
     const pasos = req.body.pasos ? JSON.parse(req.body.pasos) : [];
-    const imagen_url = req.file ? `/uploads/${req.file.filename}` : req.body.imagen_url || null;
+    const imagen_url = req.file
+      ? await uploadImage(req.file, 'cookhub/recetas')
+      : req.body.imagen_url || null;
 
     const [result] = await pool.query(
       `UPDATE recetas
-      SET titulo = ?, descripcion = ?, tiempo_preparacion = ?, imagen_url = ?, categoria_id = ?
+      SET titulo = ?, descripcion = ?, tiempo_preparacion = ?, imagen_url = COALESCE(?, imagen_url), categoria_id = ?
        WHERE id = ?`,
       [titulo, descripcion, tiempo_preparacion, imagen_url, categoria_id, id]
     );

@@ -2,6 +2,7 @@ import express from 'express';
 import pool from '../config/db.js';
 import { verifyToken } from '../middlewares/auth.js';
 import upload from '../middlewares/upload.js';
+import { uploadImage } from '../services/cloudinaryService.js';
 
 const router = express.Router();
 
@@ -24,10 +25,10 @@ router.put('/:id', verifyToken, upload.single('foto_perfil'), async (req, res) =
   try {
     const usuario_id = req.params.id;
     const nombre = req.body.nombre;
-    const foto_perfil = req.file ? `/uploads/${req.file.filename}` : null;
+    const foto_perfil = await uploadImage(req.file, 'cookhub/perfiles');
 
     await pool.query(
-      `UPDATE usuarios SET nombre = ?, foto_perfil = ? WHERE id = ?`,
+      `UPDATE usuarios SET nombre = ?, foto_perfil = COALESCE(?, foto_perfil) WHERE id = ?`,
       [nombre, foto_perfil, usuario_id]
     );
 
