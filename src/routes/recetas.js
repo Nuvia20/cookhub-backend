@@ -86,12 +86,13 @@ router.post('/', verifyToken, upload.single('imagen'), async (req, res) => {
     const pasos = req.body.pasos ? JSON.parse(req.body.pasos) : [];
 
     const usuario_id = req.user.id;
+    const categoriaId = categoria_id || null;
     const imagen_url = await uploadImage(req.file, 'cookhub/recetas');
 
     const [recetaRows] = await pool.query(
       `INSERT INTO recetas (usuario_id, titulo, descripcion, tiempo_preparacion, imagen_url, categoria_id)
        VALUES (?, ?, ?, ?, ?, ?) RETURNING id`,
-      [usuario_id, titulo, descripcion, tiempo_preparacion, imagen_url, categoria_id]
+      [usuario_id, titulo, descripcion, tiempo_preparacion, imagen_url, categoriaId]
     );
     const receta_id = recetaRows[0]?.id;
 
@@ -111,7 +112,7 @@ router.post('/', verifyToken, upload.single('imagen'), async (req, res) => {
 
     res.status(201).json({ success: true, receta_id, imagen_url });
   } catch (error) {
-    console.error(error);
+    console.error('Error al crear receta:', error);
     res.status(500).json({ success: false, error: 'Error al crear receta' });
   }
 });
@@ -164,6 +165,7 @@ router.put('/:id', verifyToken, upload.single('imagen'), async (req, res) => {
     const { titulo, descripcion, tiempo_preparacion, categoria_id } = req.body;
     const ingredientes = req.body.ingredientes ? JSON.parse(req.body.ingredientes) : [];
     const pasos = req.body.pasos ? JSON.parse(req.body.pasos) : [];
+    const categoriaId = categoria_id || null;
     const imagen_url = req.file
       ? await uploadImage(req.file, 'cookhub/recetas')
       : req.body.imagen_url || null;
@@ -172,7 +174,7 @@ router.put('/:id', verifyToken, upload.single('imagen'), async (req, res) => {
       `UPDATE recetas
       SET titulo = ?, descripcion = ?, tiempo_preparacion = ?, imagen_url = COALESCE(?, imagen_url), categoria_id = ?
        WHERE id = ?`,
-      [titulo, descripcion, tiempo_preparacion, imagen_url, categoria_id, id]
+      [titulo, descripcion, tiempo_preparacion, imagen_url, categoriaId, id]
     );
 
     if (result.affectedRows === 0) {

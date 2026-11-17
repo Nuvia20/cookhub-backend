@@ -34,6 +34,7 @@ router.put('/:id', verifyToken, upload.single('foto_perfil'), async (req, res) =
 
     res.json({ success: true, message: 'Perfil actualizado', foto_perfil });
   } catch (error) {
+    console.error('Error al actualizar perfil:', error);
     res.status(500).json({ success: false, error: 'Error al actualizar perfil' });
   }
 });
