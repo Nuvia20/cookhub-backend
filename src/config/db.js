@@ -55,5 +55,30 @@ const query = async (text, values = []) => {
 
 const pool = { query };
 
+export const syncSequences = async () => {
+  const tables = [
+    'usuarios',
+    'roles',
+    'permisos',
+    'categorias',
+    'recetas',
+    'ingredientes',
+    'pasos',
+    'comentarios',
+    'likes',
+  ];
+
+  for (const table of tables) {
+    await postgresPool.query(`
+      SELECT setval(
+        pg_get_serial_sequence('${table}', 'id'),
+        COALESCE(MAX(id), 0) + 1,
+        false
+      )
+      FROM ${table}
+    `);
+  }
+};
+
 export { query };
 export default pool;
