@@ -20,7 +20,10 @@ const normalizeText = (text) =>
     .replace(/\s+/g, ' ')
     .trim();
 
-const buildResponse = (speech, { reprompt = null, endSession = false } = {}) => ({
+const buildResponse = (
+  speech,
+  { reprompt = null, endSession = false, sessionAttributes = null } = {}
+) => ({
   version: '1.0',
   response: {
     outputSpeech: {
@@ -39,6 +42,7 @@ const buildResponse = (speech, { reprompt = null, endSession = false } = {}) => 
       : {}),
     shouldEndSession: endSession,
   },
+  ...(sessionAttributes ? { sessionAttributes } : {}),
 });
 
 const getSlotValue = (intent, slotName) =>
@@ -157,9 +161,57 @@ router.post('/', async (req, res) => {
 
     const intentName = request.intent?.name;
     const intent = request.intent;
+    const sessionAttributes =
+      envelope?.session?.attributes || {};
 
     if (intentName === 'AMAZON.StopIntent' || intentName === 'AMAZON.CancelIntent') {
       return res.json(buildResponse('Hasta pronto.', { endSession: true }));
+    }
+
+    if (intentName === 'AMAZON.YesIntent') {
+      const lastRecipeId = sessionAttributes.lastRecipeId;
+
+      if (!lastRecipeId) {
+        return res.json(
+          buildResponse('Primero dime el nombre de una receta.', {
+            reprompt: '¿Qué receta quieres consultar?',
+          })
+        );
+      }
+
+      const details = await getRecipeDetails(lastRecipeId);
+
+      if (!details) {
+        return res.json(buildResponse('Ya no pude encontrar esa receta.'));
+      }
+
+      if (details.ingredientes.length === 0) {
+        return res.json(
+          buildResponse(`${details.titulo} no tiene ingredientes registrados.`)
+        );
+      }
+
+      return res.json(
+        buildResponse(
+          `Los ingredientes de ${details.titulo} son: ${formatIngredients(details.ingredientes)}.`,
+          {
+            reprompt: '¿Quieres escuchar los pasos?',
+            sessionAttributes: {
+              ...sessionAttributes,
+              lastRecipeId: details.id,
+            },
+          }
+        )
+      );
+    }
+
+    if (intentName === 'AMAZON.NoIntent') {
+      return res.json(
+        buildResponse('Muy bien. ¿Qué otra cosa quieres consultar?', {
+          reprompt: 'Puedes pedirme una receta o sus ingredientes.',
+          sessionAttributes: {},
+        })
+      );
     }
 
     if (intentName === 'AMAZON.HelpIntent') {
@@ -195,6 +247,10 @@ router.post('/', async (req, res) => {
           `Te recomiendo ${recipe.titulo}.${preparationTime} ¿Quieres escuchar los ingredientes?`,
           {
             reprompt: 'Puedes pedirme los ingredientes.',
+            sessionAttributes: {
+              ...sessionAttributes,
+              lastRecipeId: recipe.id,
+            },
           }
         )
       );
