@@ -257,20 +257,37 @@ router.post('/', async (req, res) => {
     }
 
     if (
+      intentName === 'RecipeLookupIntent'
+      ||
       intentName === 'RecipeIngredientsIntent'
       || intentName === 'RecipeStepsIntent'
     ) {
       const recipeName = getSlotValue(intent, 'recipeName');
 
-      if (!recipeName) {
+      let recipe = null;
+
+      if (recipeName) {
+        recipe = await findRecipeByName(recipeName);
+      } else if (
+        sessionAttributes.lastRecipeId
+        && (intentName === 'RecipeIngredientsIntent' || intentName === 'RecipeStepsIntent')
+      ) {
+        const [recipes] = await pool.query(
+          `SELECT id, titulo
+           FROM recetas
+           WHERE id = ?`,
+          [sessionAttributes.lastRecipeId]
+        );
+        recipe = recipes[0] || null;
+      }
+
+      if (!recipeName && !recipe) {
         return res.json(
           buildResponse('¿De qué receta quieres saber?', {
             reprompt: 'Dime el nombre de una receta.',
           })
         );
       }
-
-      const recipe = await findRecipeByName(recipeName);
 
       if (!recipe) {
         return res.json(
@@ -286,6 +303,25 @@ router.post('/', async (req, res) => {
         return res.json(buildResponse(`No pude obtener ${recipe.titulo}.`));
       }
 
+      if (intentName === 'RecipeLookupIntent') {
+        const preparationTime = details.tiempo_preparacion
+          ? ` El tiempo de preparación es ${details.tiempo_preparacion} minutos.`
+          : '';
+
+        return res.json(
+          buildResponse(
+            `Encontré ${details.titulo}.${preparationTime} ¿Quieres escuchar los ingredientes o los pasos?`,
+            {
+              reprompt: 'Puedes pedirme los ingredientes o los pasos.',
+              sessionAttributes: {
+                ...sessionAttributes,
+                lastRecipeId: details.id,
+              },
+            }
+          )
+        );
+      }
+
       if (intentName === 'RecipeIngredientsIntent') {
         if (details.ingredientes.length === 0) {
           return res.json(
@@ -296,7 +332,13 @@ router.post('/', async (req, res) => {
         return res.json(
           buildResponse(
             `Los ingredientes de ${details.titulo} son: ${formatIngredients(details.ingredientes)}.`,
-            { reprompt: '¿Quieres escuchar los pasos?' }
+            {
+              reprompt: '¿Quieres escuchar los pasos?',
+              sessionAttributes: {
+                ...sessionAttributes,
+                lastRecipeId: details.id,
+              },
+            }
           )
         );
       }
@@ -308,7 +350,13 @@ router.post('/', async (req, res) => {
       return res.json(
         buildResponse(
           `Los pasos para preparar ${details.titulo} son: ${formatSteps(details.pasos)}.`,
-          { endSession: true }
+          {
+            reprompt: '¿Quieres escuchar otra receta?',
+            sessionAttributes: {
+              ...sessionAttributes,
+              lastRecipeId: details.id,
+            },
+          }
         )
       );
     }
