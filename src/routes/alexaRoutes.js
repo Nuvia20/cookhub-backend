@@ -61,6 +61,11 @@ const buildResponse = (
 const getSlotValue = (intent, slotName) =>
   intent?.slots?.[slotName]?.value?.trim() || '';
 
+// El adaptador de PostgreSQL devuelve [filas, metadata].
+// Este helper también acepta el formato nativo pg por si cambia el adaptador.
+const getRows = (result) =>
+  Array.isArray(result) ? (result[0] || []) : (result?.rows || []);
+
 
 // ============================================
 // CONSULTAS A POSTGRESQL
@@ -78,7 +83,7 @@ const findRecipeByName = async (name) => {
      ORDER BY LENGTH(titulo) ASC`
   );
 
-  const recipes = result.rows;
+  const recipes = getRows(result);
 
   // Coincidencia completa o parcial
   return (
@@ -103,18 +108,20 @@ const getRecipeDetails = async (recipeId) => {
   const recipeResult = await pool.query(
     `SELECT id, titulo, descripcion, tiempo_preparacion
      FROM recetas
-     WHERE id = $1`,
+     WHERE id = ?`,
     [recipeId]
   );
 
-  if (recipeResult.rows.length === 0) {
+  const recipes = getRows(recipeResult);
+
+  if (recipes.length === 0) {
     return null;
   }
 
   const ingredientResult = await pool.query(
     `SELECT nombre, cantidad
      FROM ingredientes
-     WHERE receta_id = $1
+     WHERE receta_id = ?
      ORDER BY id ASC`,
     [recipeId]
   );
@@ -122,15 +129,15 @@ const getRecipeDetails = async (recipeId) => {
   const stepsResult = await pool.query(
     `SELECT paso_numero, descripcion
      FROM pasos
-     WHERE receta_id = $1
+     WHERE receta_id = ?
      ORDER BY paso_numero ASC`,
     [recipeId]
   );
 
   return {
-    ...recipeResult.rows[0],
-    ingredientes: ingredientResult.rows,
-    pasos: stepsResult.rows,
+    ...recipes[0],
+    ingredientes: getRows(ingredientResult),
+    pasos: getRows(stepsResult),
   };
 };
 
@@ -145,7 +152,8 @@ const getRandomRecipe = async () => {
      LIMIT 1`
   );
 
-  return result.rows[0] || null;
+  const recipes = getRows(result);
+  return recipes[0] || null;
 };
 
 
@@ -562,11 +570,11 @@ router.post('/', async (req, res) => {
         const result = await pool.query(
           `SELECT id, titulo
            FROM recetas
-           WHERE id = $1`,
+           WHERE id = ?`,
           [sessionAttributes.lastRecipeId]
         );
 
-        recipe = result.rows[0] || null;
+        recipe = getRows(result)[0] || null;
       }
 
       if (!recipeName && !recipe) {
