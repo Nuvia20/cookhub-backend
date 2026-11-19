@@ -1,16 +1,14 @@
+
 import { Router } from 'express';
 import pool from '../config/db.js';
 
 const router = Router();
 
-const escapeSsml = (text) =>
-  String(text || '')
-    .replace(/&/g, '&amp;')
-    .replace(/</g, '&lt;')
-    .replace(/>/g, '&gt;')
-    .replace(/"/g, '&quot;')
-    .replace(/'/g, '&apos;');
+// ============================================
+// UTILIDADES
+// ============================================
 
+// Normalizar texto para facilitar las búsquedas
 const normalizeText = (text) =>
   String(text || '')
     .normalize('NFD')
@@ -20,9 +18,23 @@ const normalizeText = (text) =>
     .replace(/\s+/g, ' ')
     .trim();
 
+// Escapar caracteres especiales para SSML
+const escapeSsml = (text) =>
+  String(text || '')
+    .replace(/&/g, '&amp;')
+    .replace(/</g, '&lt;')
+    .replace(/>/g, '&gt;')
+    .replace(/"/g, '&quot;')
+    .replace(/'/g, '&apos;');
+
+// Construir respuesta de Alexa
 const buildResponse = (
   speech,
-  { reprompt = null, endSession = false, sessionAttributes = null } = {}
+  {
+    reprompt = null,
+    endSession = false,
+    sessionAttributes = null,
+  } = {}
 ) => ({
   version: '1.0',
   response: {
@@ -45,65 +57,103 @@ const buildResponse = (
   ...(sessionAttributes ? { sessionAttributes } : {}),
 });
 
+// Obtener el valor de un slot
 const getSlotValue = (intent, slotName) =>
   intent?.slots?.[slotName]?.value?.trim() || '';
 
+
+// ============================================
+// CONSULTAS A POSTGRESQL
+// ============================================
+
+// Buscar receta por nombre
 const findRecipeByName = async (name) => {
   const normalizedName = normalizeText(name);
 
-  if (!normalizedName) {
-    return null;
-  }
+  if (!normalizedName) return null;
 
-  const [recipes] = await pool.query(
+  const result = await pool.query(
     `SELECT id, titulo
      FROM recetas
      ORDER BY LENGTH(titulo) ASC`
   );
 
-  return recipes.find((recipe) =>
-    normalizeText(recipe.titulo).includes(normalizedName)
-  ) || recipes.find((recipe) => {
-    const title = normalizeText(recipe.titulo);
-    return normalizedName.split(' ').some((word) => word.length > 2 && title.includes(word));
-  }) || null;
+  const recipes = result.rows;
+
+  // Coincidencia completa o parcial
+  return (
+    recipes.find((recipe) =>
+      normalizeText(recipe.titulo).includes(normalizedName)
+    ) ||
+    recipes.find((recipe) => {
+      const title = normalizeText(recipe.titulo);
+
+      return normalizedName
+        .split(' ')
+        .some((word) => word.length > 2 && title.includes(word));
+    }) ||
+    null
+  );
 };
 
+
+// Obtener información completa de una receta
 const getRecipeDetails = async (recipeId) => {
-  const [recipes] = await pool.query(
+
+  const recipeResult = await pool.query(
     `SELECT id, titulo, descripcion, tiempo_preparacion
      FROM recetas
-     WHERE id = ?`,
+     WHERE id = $1`,
     [recipeId]
   );
 
-  if (recipes.length === 0) {
+  if (recipeResult.rows.length === 0) {
     return null;
   }
 
-  const [ingredients] = await pool.query(
+  const ingredientResult = await pool.query(
     `SELECT nombre, cantidad
      FROM ingredientes
-     WHERE receta_id = ?
+     WHERE receta_id = $1
      ORDER BY id ASC`,
     [recipeId]
   );
 
-  const [steps] = await pool.query(
+  const stepsResult = await pool.query(
     `SELECT paso_numero, descripcion
      FROM pasos
-     WHERE receta_id = ?
+     WHERE receta_id = $1
      ORDER BY paso_numero ASC`,
     [recipeId]
   );
 
   return {
-    ...recipes[0],
-    ingredientes: ingredients,
-    pasos: steps,
+    ...recipeResult.rows[0],
+    ingredientes: ingredientResult.rows,
+    pasos: stepsResult.rows,
   };
 };
 
+
+// Obtener receta aleatoria
+const getRandomRecipe = async () => {
+
+  const result = await pool.query(
+    `SELECT id, titulo, tiempo_preparacion
+     FROM recetas
+     ORDER BY RANDOM()
+     LIMIT 1`
+  );
+
+  return result.rows[0] || null;
+};
+
+
+// ============================================
+// FORMATEAR INFORMACIÓN
+// ============================================
+
+// Formatear ingredientes
 const formatIngredients = (ingredients) =>
   ingredients
     .map((ingredient) =>
@@ -113,269 +163,516 @@ const formatIngredients = (ingredients) =>
     )
     .join(', ');
 
+
+// Formatear pasos de preparación
 const formatSteps = (steps) =>
   steps
-    .map((step, index) => `Paso ${index + 1}: ${step.descripcion}`)
+    .map(
+      (step, index) =>
+        `Paso ${step.paso_numero || index + 1}: ${step.descripcion}`
+    )
     .join('. ');
 
+
+// ============================================
+// RESPUESTAS DE RECETAS
+// ============================================
+
+// Mostrar ingredientes y preguntar por los pasos
+const buildIngredientsResponse = (
+  details,
+  sessionAttributes = {}
+) => {
+
+  if (details.ingredientes.length === 0) {
+    return buildResponse(
+      `${details.titulo} no tiene ingredientes registrados.`,
+      {
+        sessionAttributes: {
+          ...sessionAttributes,
+          lastRecipeId: details.id,
+          pendingAction: null,
+        },
+      }
+    );
+  }
+
+  return buildResponse(
+    `Te daré los ingredientes de ${details.titulo}. ` +
+    `Los ingredientes son: ${formatIngredients(details.ingredientes)}. ` +
+    `¿Quieres escuchar los pasos?`,
+    {
+      reprompt:
+        'Puedes responder sí para escuchar los pasos, o no para terminar.',
+      sessionAttributes: {
+        ...sessionAttributes,
+        lastRecipeId: details.id,
+        pendingAction: 'steps',
+      },
+    }
+  );
+};
+
+
+// Mostrar pasos de preparación
+const buildStepsResponse = (
+  details,
+  sessionAttributes = {}
+) => {
+
+  if (details.pasos.length === 0) {
+    return buildResponse(
+      `${details.titulo} no tiene pasos registrados.`,
+      {
+        sessionAttributes: {
+          ...sessionAttributes,
+          lastRecipeId: details.id,
+          pendingAction: null,
+        },
+      }
+    );
+  }
+
+  return buildResponse(
+    `Estos son los pasos para preparar ${details.titulo}. ` +
+    `${formatSteps(details.pasos)}. ` +
+    `¿Quieres consultar otra receta?`,
+    {
+      reprompt:
+        'Puedes decir gracias para terminar o pedirme otra receta.',
+      sessionAttributes: {
+        ...sessionAttributes,
+        lastRecipeId: details.id,
+        pendingAction: 'newRecipe',
+      },
+    }
+  );
+};
+
+
+// ============================================
+// ENDPOINT DE ALEXA
+// ============================================
+
+// Verificar que el servicio esté disponible
 router.get('/', (_req, res) => {
-  res.json({ service: 'CookHub Alexa endpoint', status: 'ready' });
+  res.json({
+    service: 'CookHub Alexa endpoint',
+    status: 'ready',
+  });
 });
 
+
+// Procesar solicitudes de Alexa
 router.post('/', async (req, res) => {
+
   try {
+
     const envelope = req.body;
     const request = envelope?.request;
 
     if (!request) {
-      return res.status(400).json(buildResponse('Solicitud inválida.'));
+      return res.status(400).json(
+        buildResponse('Solicitud inválida.')
+      );
     }
 
+    // Validación de Alexa Skill ID
     const expectedAppId = process.env.ALEXA_APP_ID;
-    const receivedAppId = envelope?.session?.application?.applicationId;
+    const receivedAppId =
+      envelope?.session?.application?.applicationId;
 
-    if (expectedAppId && receivedAppId !== expectedAppId) {
-      return res.status(403).json(buildResponse('Esta Skill no está autorizada.'));
+    if (
+      expectedAppId &&
+      receivedAppId !== expectedAppId
+    ) {
+      return res.status(403).json(
+        buildResponse(
+          'Esta Skill no está autorizada.',
+          { endSession: true }
+        )
+      );
     }
+
+    // ========================================
+    // INICIO DE LA SKILL
+    // ========================================
 
     if (request.type === 'LaunchRequest') {
+
       return res.json(
         buildResponse(
-          'Bienvenido a CookHub. Puedes pedirme una receta, sus ingredientes o sus pasos.',
+          'Bienvenido a CookHub. Puedes pedirme una receta por su nombre, consultar sus ingredientes o escuchar sus pasos.',
           {
-            reprompt: '¿Qué receta quieres buscar?',
+            reprompt: '¿Qué receta quieres preparar?',
+            sessionAttributes: {},
           }
         )
       );
     }
 
     if (request.type === 'SessionEndedRequest') {
-      return res.json(buildResponse('Hasta pronto.', { endSession: true }));
+
+      return res.json(
+        buildResponse(
+          'Hasta pronto.',
+          { endSession: true }
+        )
+      );
     }
 
     if (request.type !== 'IntentRequest') {
+
       return res.json(
-        buildResponse('No pude procesar la solicitud.', { endSession: true })
+        buildResponse(
+          'No pude procesar la solicitud.',
+          { endSession: true }
+        )
       );
     }
 
     const intentName = request.intent?.name;
     const intent = request.intent;
+
     const sessionAttributes =
       envelope?.session?.attributes || {};
 
-    if (intentName === 'AMAZON.StopIntent' || intentName === 'AMAZON.CancelIntent') {
-      return res.json(buildResponse('Hasta pronto.', { endSession: true }));
-    }
 
-    if (intentName === 'AMAZON.YesIntent') {
-      const lastRecipeId = sessionAttributes.lastRecipeId;
-
-      if (!lastRecipeId) {
-        return res.json(
-          buildResponse('Primero dime el nombre de una receta.', {
-            reprompt: '¿Qué receta quieres consultar?',
-          })
-        );
-      }
-
-      const details = await getRecipeDetails(lastRecipeId);
-
-      if (!details) {
-        return res.json(buildResponse('Ya no pude encontrar esa receta.'));
-      }
-
-      if (details.ingredientes.length === 0) {
-        return res.json(
-          buildResponse(`${details.titulo} no tiene ingredientes registrados.`)
-        );
-      }
-
-      return res.json(
-        buildResponse(
-          `Los ingredientes de ${details.titulo} son: ${formatIngredients(details.ingredientes)}.`,
-          {
-            reprompt: '¿Quieres escuchar los pasos?',
-            sessionAttributes: {
-              ...sessionAttributes,
-              lastRecipeId: details.id,
-            },
-          }
-        )
-      );
-    }
-
-    if (intentName === 'AMAZON.NoIntent') {
-      return res.json(
-        buildResponse('Muy bien. ¿Qué otra cosa quieres consultar?', {
-          reprompt: 'Puedes pedirme una receta o sus ingredientes.',
-          sessionAttributes: {},
-        })
-      );
-    }
-
-    if (intentName === 'AMAZON.HelpIntent') {
-      return res.json(
-        buildResponse(
-          'Puedes decir: dame una receta, dame los ingredientes de pastel, o los pasos de un platillo.',
-          {
-            reprompt: '¿Qué quieres cocinar?',
-          }
-        )
-      );
-    }
-
-    if (intentName === 'RandomRecipeIntent') {
-      const [recipes] = await pool.query(
-        `SELECT id, titulo, tiempo_preparacion
-         FROM recetas
-         ORDER BY RANDOM()
-         LIMIT 1`
-      );
-
-      if (recipes.length === 0) {
-        return res.json(buildResponse('Todavía no hay recetas disponibles.'));
-      }
-
-      const recipe = recipes[0];
-      const preparationTime = recipe.tiempo_preparacion
-        ? ` El tiempo de preparación es ${recipe.tiempo_preparacion}.`
-        : '';
-
-      return res.json(
-        buildResponse(
-          `Te recomiendo ${recipe.titulo}.${preparationTime} ¿Quieres escuchar los ingredientes?`,
-          {
-            reprompt: 'Puedes pedirme los ingredientes.',
-            sessionAttributes: {
-              ...sessionAttributes,
-              lastRecipeId: recipe.id,
-            },
-          }
-        )
-      );
-    }
+    // ========================================
+    // DETENER O CANCELAR
+    // ========================================
 
     if (
-      intentName === 'RecipeLookupIntent'
-      ||
-      intentName === 'RecipeIngredientsIntent'
-      || intentName === 'RecipeStepsIntent'
+      intentName === 'AMAZON.StopIntent' ||
+      intentName === 'AMAZON.CancelIntent'
     ) {
-      const recipeName = getSlotValue(intent, 'recipeName');
+
+      return res.json(
+        buildResponse(
+          'Hasta pronto. Espero que disfrutes tus recetas.',
+          {
+            endSession: true,
+            sessionAttributes: {},
+          }
+        )
+      );
+    }
+
+
+    // ========================================
+    // AGRADECIMIENTO
+    // ========================================
+
+    if (intentName === 'ThankYouIntent') {
+
+      return res.json(
+        buildResponse(
+          'Con gusto. Espero que disfrutes tu receta.',
+          {
+            endSession: true,
+            sessionAttributes: {},
+          }
+        )
+      );
+    }
+
+
+    // ========================================
+    // RESPUESTA AFIRMATIVA
+    // ========================================
+
+    if (intentName === 'AMAZON.YesIntent') {
+
+      const lastRecipeId =
+        sessionAttributes.lastRecipeId;
+
+      if (!lastRecipeId) {
+
+        return res.json(
+          buildResponse(
+            'Primero dime el nombre de una receta.',
+            {
+              reprompt: '¿Qué receta quieres consultar?',
+            }
+          )
+        );
+      }
+
+      const details =
+        await getRecipeDetails(lastRecipeId);
+
+      if (!details) {
+
+        return res.json(
+          buildResponse(
+            'Ya no pude encontrar esa receta.',
+            { endSession: true }
+          )
+        );
+      }
+
+      // Si anteriormente preguntó por los pasos
+      if (
+        sessionAttributes.pendingAction === 'steps'
+      ) {
+
+        return res.json(
+          buildStepsResponse(
+            details,
+            sessionAttributes
+          )
+        );
+      }
+
+      // Si anteriormente preguntó por otra receta
+      if (
+        sessionAttributes.pendingAction === 'newRecipe'
+      ) {
+
+        return res.json(
+          buildResponse(
+            'Claro. Dime el nombre de la receta que quieres consultar.',
+            {
+              reprompt: '¿Qué receta quieres preparar?',
+              sessionAttributes: {
+                ...sessionAttributes,
+                pendingAction: null,
+              },
+            }
+          )
+        );
+      }
+
+      return res.json(
+        buildResponse(
+          '¿Qué receta quieres consultar?',
+          {
+            reprompt: 'Dime el nombre de una receta.',
+          }
+        )
+      );
+    }
+
+
+    // ========================================
+    // RESPUESTA NEGATIVA
+    // ========================================
+
+    if (intentName === 'AMAZON.NoIntent') {
+
+      return res.json(
+        buildResponse(
+          'De acuerdo. Puedes pedirme otra receta cuando quieras.',
+          {
+            reprompt: '¿Qué otra receta quieres consultar?',
+            sessionAttributes: {
+              ...sessionAttributes,
+              pendingAction: null,
+            },
+          }
+        )
+      );
+    }
+
+
+    // ========================================
+    // AYUDA
+    // ========================================
+
+    if (intentName === 'AMAZON.HelpIntent') {
+
+      return res.json(
+        buildResponse(
+          'Puedes decir: dame una receta, dame la receta de cheesecake, cuáles son los ingredientes o cómo se prepara un platillo.',
+          {
+            reprompt: '¿Qué receta quieres preparar?',
+            sessionAttributes,
+          }
+        )
+      );
+    }
+
+
+    // ========================================
+    // RECETA ALEATORIA
+    // ========================================
+
+    if (intentName === 'RandomRecipeIntent') {
+
+      const recipe = await getRandomRecipe();
+
+      if (!recipe) {
+
+        return res.json(
+          buildResponse(
+            'Todavía no hay recetas disponibles en CookHub.'
+          )
+        );
+      }
+
+      const details =
+        await getRecipeDetails(recipe.id);
+
+      if (!details) {
+
+        return res.json(
+          buildResponse(
+            `No pude obtener la información de ${recipe.titulo}.`
+          )
+        );
+      }
+
+      return res.json(
+        buildIngredientsResponse(
+          details,
+          sessionAttributes
+        )
+      );
+    }
+
+
+    // ========================================
+    // BUSCAR RECETA, INGREDIENTES O PASOS
+    // ========================================
+
+    if (
+      intentName === 'RecipeLookupIntent' ||
+      intentName === 'RecipeIngredientsIntent' ||
+      intentName === 'RecipeStepsIntent'
+    ) {
+
+      const recipeName =
+        getSlotValue(intent, 'recipeName');
 
       let recipe = null;
 
+      // Buscar por nombre
       if (recipeName) {
+
         recipe = await findRecipeByName(recipeName);
+
       } else if (
-        sessionAttributes.lastRecipeId
-        && (intentName === 'RecipeIngredientsIntent' || intentName === 'RecipeStepsIntent')
+        sessionAttributes.lastRecipeId &&
+        (
+          intentName === 'RecipeIngredientsIntent' ||
+          intentName === 'RecipeStepsIntent'
+        )
       ) {
-        const [recipes] = await pool.query(
+
+        const result = await pool.query(
           `SELECT id, titulo
            FROM recetas
-           WHERE id = ?`,
+           WHERE id = $1`,
           [sessionAttributes.lastRecipeId]
         );
-        recipe = recipes[0] || null;
+
+        recipe = result.rows[0] || null;
       }
 
       if (!recipeName && !recipe) {
+
         return res.json(
-          buildResponse('¿De qué receta quieres saber?', {
-            reprompt: 'Dime el nombre de una receta.',
-          })
+          buildResponse(
+            '¿De qué receta quieres saber?',
+            {
+              reprompt: 'Dime el nombre de una receta.',
+              sessionAttributes,
+            }
+          )
         );
       }
 
       if (!recipe) {
+
         return res.json(
-          buildResponse(`No encontré una receta llamada ${recipeName}.`, {
-            reprompt: 'Puedes decirme el nombre de otra receta.',
-          })
+          buildResponse(
+            `No encontré una receta llamada ${recipeName}.`,
+            {
+              reprompt:
+                'Puedes decirme el nombre de otra receta.',
+              sessionAttributes,
+            }
+          )
         );
       }
 
-      const details = await getRecipeDetails(recipe.id);
+      const details =
+        await getRecipeDetails(recipe.id);
 
       if (!details) {
-        return res.json(buildResponse(`No pude obtener ${recipe.titulo}.`));
-      }
-
-      if (intentName === 'RecipeLookupIntent') {
-        const preparationTime = details.tiempo_preparacion
-          ? ` El tiempo de preparación es ${details.tiempo_preparacion} minutos.`
-          : '';
 
         return res.json(
           buildResponse(
-            `Encontré ${details.titulo}.${preparationTime} ¿Quieres escuchar los ingredientes o los pasos?`,
-            {
-              reprompt: 'Puedes pedirme los ingredientes o los pasos.',
-              sessionAttributes: {
-                ...sessionAttributes,
-                lastRecipeId: details.id,
-              },
-            }
+            `No pude obtener la información de ${recipe.titulo}.`
           )
         );
       }
 
-      if (intentName === 'RecipeIngredientsIntent') {
-        if (details.ingredientes.length === 0) {
-          return res.json(
-            buildResponse(`${details.titulo} no tiene ingredientes registrados.`)
-          );
-        }
+      // Consultar receta o ingredientes
+      if (
+        intentName === 'RecipeLookupIntent' ||
+        intentName === 'RecipeIngredientsIntent'
+      ) {
 
         return res.json(
-          buildResponse(
-            `Los ingredientes de ${details.titulo} son: ${formatIngredients(details.ingredientes)}.`,
-            {
-              reprompt: '¿Quieres escuchar los pasos?',
-              sessionAttributes: {
-                ...sessionAttributes,
-                lastRecipeId: details.id,
-              },
-            }
+          buildIngredientsResponse(
+            details,
+            sessionAttributes
           )
         );
       }
 
-      if (details.pasos.length === 0) {
-        return res.json(buildResponse(`${details.titulo} no tiene pasos registrados.`));
-      }
+      // Consultar directamente los pasos
+      return res.json(
+        buildStepsResponse(
+          details,
+          sessionAttributes
+        )
+      );
+    }
+
+
+    // ========================================
+    // SOLICITUD NO RECONOCIDA
+    // ========================================
+
+    if (intentName === 'AMAZON.FallbackIntent') {
 
       return res.json(
         buildResponse(
-          `Los pasos para preparar ${details.titulo} son: ${formatSteps(details.pasos)}.`,
+          'No entendí esa solicitud. Puedes pedirme una receta, sus ingredientes o sus pasos.',
           {
-            reprompt: '¿Quieres escuchar otra receta?',
-            sessionAttributes: {
-              ...sessionAttributes,
-              lastRecipeId: details.id,
-            },
+            reprompt: '¿Qué receta quieres preparar?',
+            sessionAttributes,
           }
         )
       );
     }
 
-    if (intentName === 'AMAZON.FallbackIntent') {
-      return res.json(
-        buildResponse('Puedes pedirme una receta o consultar ingredientes y pasos.', {
-          reprompt: '¿Qué necesitas?',
-        })
-      );
-    }
-
     return res.json(
-      buildResponse('Todavía no puedo realizar esa petición.', { endSession: true })
+      buildResponse(
+        'Todavía no puedo realizar esa petición. Puedes pedirme una receta o consultar sus ingredientes y pasos.',
+        {
+          reprompt: '¿Qué necesitas?',
+          sessionAttributes,
+        }
+      )
     );
+
   } catch (error) {
-    console.error('Error en endpoint Alexa:', error);
+
+    console.error(
+      'Error en endpoint Alexa:',
+      error
+    );
+
     return res.status(500).json(
-      buildResponse('Ocurrió un error al consultar CookHub.', { endSession: true })
+      buildResponse(
+        'Ocurrió un error al consultar CookHub.',
+        {
+          endSession: true,
+        }
+      )
     );
   }
 });
